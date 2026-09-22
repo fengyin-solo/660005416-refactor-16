@@ -5,6 +5,13 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from .scoring import (
+    WINDOW_SIZE,
+    window_score_records,
+    project_fields,
+    ANOMALY_FIELDS,
+)
+
 app = FastAPI(title="Log Anomaly Detector")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
@@ -101,43 +108,10 @@ def analyze_logs(logs_data, rules, query):
     logs = logs_data
     n = len(logs)
 
-    # Time windows (1min each for demonstration)
-    window_size = 20
-    windows = []
-    for i in range(0, n, window_size):
-        chunk = logs[i:i + window_size]
-        levels = Counter(l["level"] for l in chunk)
-        sources = Counter(l["source"] for l in chunk)
-        windows.append({
-            "start": i, "end": min(i + window_size, n),
-            "count": len(chunk),
-            "levels": dict(levels),
-            "sources": dict(sources)
-        })
+    # 窗口聚合 + 3-sigma/IQR 异常分数：共用同一份口径，分数只在这里计算一次
+    windows, records = window_score_records(logs, WINDOW_SIZE)
 
-    # 3-sigma + IQR anomaly detection
-    counts = [w["count"] for w in windows]
-    mean = float(np.mean(counts))
-    std = float(np.std(counts)) if len(counts) > 1 else 1.0
-    q1 = float(np.percentile(counts, 25)) if len(counts) > 3 else mean - std
-    q3 = float(np.percentile(counts, 75)) if len(counts) > 3 else mean + std
-    iqr = q3 - q1 if q3 > q1 else 1.0
-
-    anomalies = []
-    for i, w in enumerate(windows):
-        sigma_score = abs(w["count"] - mean) / max(std, 1e-5)
-        iqr_low = q1 - 1.5 * iqr
-        iqr_high = q3 + 1.5 * iqr
-        iqr_score = 0.0
-        if w["count"] < iqr_low or w["count"] > iqr_high:
-            iqr_score = min(10.0, abs(w["count"] - (mean)) / max(iqr, 1e-5))
-        anomalies.append({
-            "windowIndex": i,
-            "sigmaScore": round(sigma_score, 2),
-            "iqrScore": round(iqr_score, 2),
-            "isAnomaly": sigma_score > 2.5 or iqr_score > 3.0,
-            "timestamp": logs[i * window_size]["timestamp"] if i * window_size < len(logs) else ""
-        })
+    anomalies = project_fields(records, ANOMALY_FIELDS)
 
     # Alert rules
     alerts = []

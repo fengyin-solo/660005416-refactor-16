@@ -8,13 +8,13 @@ import { useLogStore } from '../store/log'
 const store = useLogStore(); const chart = ref<HTMLDivElement>(); let inst: echarts.ECharts|null=null
 function update() {
   if (!inst||!store.result) return
-  const ws = store.result.windows
+  const ws = store.windowSeries
   inst.setOption({
     backgroundColor:'transparent',grid:{left:40,right:15,top:10,bottom:25},
-    xAxis:{type:'category',data:ws.map((_,i)=>'W'+i),axisLabel:{color:'#94a3b8',fontSize:9}},
+    xAxis:{type:'category',data:ws.map(p=>p.label),axisLabel:{color:'#94a3b8',fontSize:9}},
     yAxis:{type:'value',axisLabel:{color:'#94a3b8'}},
     series:[{
-      type:'bar',data:ws.map(w=>w.count),itemStyle:{color:'#38bdf8'},
+      type:'bar',data:ws.map(p=>p.count),itemStyle:{color:'#38bdf8'},
       markLine:{data:[{type:'average',name:'avg'}],lineStyle:{color:'#f97316',type:'dashed'},label:{color:'#f97316'}}
     }],animation:false
   })

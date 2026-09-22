@@ -1,7 +1,8 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import axios from 'axios'
 import type { AnalysisResult, AlertRule } from '@/types'
+import { buildWindowSeries } from '../utils/windowSeries'
 export const useLogStore = defineStore('log', () => {
   const result = ref<AnalysisResult | null>(null)
   const loading = ref(false)
@@ -12,6 +13,9 @@ export const useLogStore = defineStore('log', () => {
     { id:2, name:'异常流量', type:'count', threshold:200, enabled:false },
     { id:3, name:'关键词命中', type:'keyword', threshold:0, enabled:true }
   ])
+
+  // 异常分数面板与窗口日志量面板共用的唯一窗口序列（分数只映射一次）
+  const windowSeries = computed(() => buildWindowSeries(result.value))
 
   async function generate() {
     loading.value=true
@@ -26,5 +30,5 @@ export const useLogStore = defineStore('log', () => {
     finally { loading.value=false }
   }
 
-  return { result, loading, searchQuery, logType, rules, generate, detect }
+  return { result, loading, searchQuery, logType, rules, windowSeries, generate, detect }
 })
